@@ -1,37 +1,37 @@
-# NSE Intraday Analysis System
+# NSE PDH/PDL Semi-Algo Scanner
 
-A single-file FastAPI service for NSE equity intraday research using Upstox market data. It scans active instruments, calculates indicators and price structure, publishes paper signals, sizes theoretical positions, and runs candle-by-candle historical backtests. It **does not contain any order placement, modification, or cancellation capability**.
+Local FastAPI dashboard for NSE intraday **signal generation only**. It never places, modifies, or cancels orders.
 
-## Setup
+## What it does
 
-1. Create and activate a Python 3.11+ virtual environment.
-2. Run `pip install -r requirements.txt`.
-3. Copy `.env.example` to `.env`, then set `UPSTOX_ACCESS_TOKEN` to a valid Upstox access token. Do not commit `.env`.
-4. Run `uvicorn main:app --host 0.0.0.0 --port 8000` (or `python main.py`). Cloud hosts can set `PORT`.
+It retrieves the NSE equity instrument master from Upstox, obtains prior completed-session OHLC levels and batched live quotes, then emits one BUY signal on a crossing above PDH and one SELL signal on a crossing below PDL. State is stored in SQLite, so repeated quotes above/below a level do not create repeated signals. It respects 09:15–15:30 Asia/Kolkata and records signals and the manual trade journal locally.
 
-Open `http://localhost:8000/` for the dashboard and `http://localhost:8000/docs` for interactive API documentation.
+## Start
 
-## Architecture
+Requires Python 3.11+ and Node is not required (the responsive dashboard is served by FastAPI).
 
-`main.py` contains the whole application: configuration, async Upstox HTTP client, in-memory instrument/candle/signal caches, indicator and structure calculations, scanner, signal engine, paper tracker, backtester, API, and embedded dashboard. No database or persistent trade storage is used. Restarting the server clears paper trades and caches.
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+Copy-Item .env.example .env
+uvicorn main:app --reload --port 8000
+```
 
-Upstox calls use the NSE instrument master to resolve symbols to API-supplied instrument keys. Keys are not constructed from symbols. The app uses Upstox V3 intraday and historical candle endpoints and OHLC quotes, with retry/backoff for temporary failures and rate limiting.
+Open `http://127.0.0.1:8000`. Enter the Upstox access token on the **Upstox** page; it remains on the local server and is never returned to the browser or written to logs. For production, use a managed secret store and PostgreSQL, put the app behind HTTPS/reverse proxy, and set a restrictive `CORS_ORIGINS` list.
 
-## Market and strategy rules
+## Telegram
 
-The service respects 09:15–15:30 Asia/Kolkata on weekdays; it does not generate new signals while closed. It calculates EMA 9/20/50/200, RSI, MACD, ROC, session-reset VWAP, volume SMA/relative volume, ATR/ATR%, and ADX. A confluence score uses trend, VWAP, momentum, volume, structure, and volatility. It reports `NO_TRADE` for weak/range-bound conditions and `WATCH` until the breakout/breakdown criteria are met. Scores represent confluence strength, not probability or expected profitability.
+On the Telegram page enter bot token and chat ID, test, then save. Credentials are never returned by API and are redacted from logs. One alert is sent for each persisted signal.
 
-Stops are ATR-based; targets are risk/reward based. `/api/position-size` provides a theoretical position size only.
+## Data and limits
+
+Upstox endpoint availability, subscription coverage, instrument-master schema, request limits, and holidays are controlled by Upstox/NSE. The scanner uses chunks, bounded retries/backoff, and failure isolation. It skips symbols with missing data rather than inventing values. Previous-session levels are populated only from a completed daily candle returned by Upstox; verify holiday behavior with your subscription before use.
 
 ## API
 
-- `GET /api/health`, `/api/market/status`, `/api/config`
-- `GET /api/stocks`, `/api/stocks/top`; `POST /api/scanner/run`
-- `GET /api/candles/{symbol}?timeframe=5minute`
-- `GET /api/indicators/{symbol}`, `/api/signals`, `/api/signals/{symbol}`
-- `GET /api/paper-trades`; `POST /api/position-size`
-- `POST /api/backtest` with `symbol`, `timeframe`, `start_date`, `end_date`, `initial_capital`, and optional `risk_per_trade`.
+`/api/health`, `/api/market/status`, `/api/upstox/status`, `/api/upstox/connect`, `/api/upstox/disconnect`, `/api/instruments`, `/api/scanner/status`, `/api/scanner/start`, `/api/scanner/stop`, `/api/signals`, `/api/signals/active`, `/api/settings`, `/api/telegram/test`, `/api/journal`, and `/ws/live`.
 
-## Limitations and research warning
+## Safety
 
-Live data availability, instrument eligibility, API quotas, and exchange holidays are controlled by Upstox/NSE and should be validated before use. The weekday calendar is not a substitute for an official holiday calendar. Backtests include basic slippage and transaction-cost assumptions but cannot remove look-ahead, survivorship, liquidity, fill-quality, regime-change, or overfitting risks. Test out of sample; do not treat signals or historical output as financial advice or a promise of profit.
+Setup scores are rule scores, not probabilities or investment advice. Signal Entry is an observed market price, not a guaranteed fill. Test with paper/manual decisions and independently validate broker API behavior before relying on it.
