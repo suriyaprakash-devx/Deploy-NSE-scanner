@@ -1,24 +1,340 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NSE Semi-Algo Scanner</title><style>
-:root{color-scheme:dark;--bg:#07111e;--card:#0d1b2d;--line:#20344d;--ink:#dbeafe;--muted:#8da3bd;--green:#34d399;--red:#fb7185;--amber:#fbbf24;--blue:#60a5fa}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px Inter,system-ui,sans-serif}header{position:sticky;top:0;z-index:1;background:#091523eF;border-bottom:1px solid var(--line);padding:15px 5%;display:flex;align-items:center;gap:18px;flex-wrap:wrap}h1{font-size:17px;margin:0;letter-spacing:.04em}nav{display:flex;gap:5px;flex-wrap:wrap}button,.btn{cursor:pointer;border:1px solid #315273;border-radius:7px;padding:8px 11px;color:var(--ink);background:#13263d;font:inherit}button:hover{border-color:var(--blue)}button.primary{background:#1459a1;border-color:#1973ca}.status{margin-left:auto;font-weight:700}.open{color:var(--green)}.closed{color:var(--red)}main{max-width:1400px;margin:auto;padding:24px 5%}.page{display:none}.page.active{display:block}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:17px}.metric{font-size:27px;font-weight:700;margin-top:7px}.muted{color:var(--muted)}table{width:100%;border-collapse:collapse;font-size:13px}th,td{border-bottom:1px solid var(--line);text-align:left;padding:10px 8px;white-space:nowrap}th{color:var(--muted);font-weight:600}.table-wrap{overflow:auto}.BUY{color:var(--green);font-weight:800}.SELL{color:var(--red);font-weight:800}.badge{font-weight:700;border-radius:15px;padding:3px 8px;background:#152b43}label{display:block;color:var(--muted);margin:12px 0 5px}input,select{background:#081522;color:var(--ink);border:1px solid #2c4c6a;border-radius:7px;padding:10px;width:min(440px,100%)}.notice{border-left:3px solid var(--amber);background:#2b240e;padding:12px;color:#fde68a;margin:0 0 16px}.actions{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}.form{max-width:520px}.hide{display:none}@media(max-width:600px){main{padding:18px 4%}header{padding:12px 4%}.status{margin-left:0}}
-</style></head><body><header><h1>NSE · PDH/PDL SCANNER</h1><nav><button data-page="dashboard">Dashboard</button><button data-page="scanner">Scanner</button><button data-page="signals">Signals</button><button data-page="upstox">Upstox</button><button data-page="telegram">Telegram</button><button data-page="settings">Settings</button><button data-page="journal">Journal</button></nav><span id="market" class="status">Loading…</span></header><main>
-<section id="dashboard" class="page active"><div class="notice">Semi-algo research tool: it generates signals and alerts only. It cannot place orders. “Signal Entry” is not a guaranteed execution price.</div><div class="grid"><div class="card"><span class="muted">Market status</span><div class="metric" id="market2">—</div><small id="clock" class="muted"></small></div><div class="card"><span class="muted">Stocks loaded</span><div class="metric" id="loaded">0</div></div><div class="card"><span class="muted">Stocks scanned</span><div class="metric" id="scanned">0</div></div><div class="card"><span class="muted">Signals (BUY / SELL)</span><div class="metric"><span id="buy">0</span> <span class="muted">/</span> <span id="sell">0</span></div></div></div><h2>Active signals</h2><div class="card table-wrap"><table><thead><tr><th>Symbol</th><th>Direction</th><th>Breakout</th><th>Signal Entry</th><th>SL</th><th>T1</th><th>T2</th><th>Score</th><th>Time IST</th><th>Status</th></tr></thead><tbody id="activeSignals"></tbody></table></div></section>
-<section id="scanner" class="page"><h2>Scanner control</h2><p class="muted">Load the full NSE equity universe, prepare prior-session levels in bounded batches, then run only during NSE market hours.</p><div class="actions"><button class="primary" onclick="refreshInstruments()">Load NSE instruments</button><button onclick="prepareLevels()">Prepare levels (first 20)</button><button class="primary" onclick="startScan()">Start scanner</button><button onclick="stopScan()">Stop</button></div><div id="scanMessage" class="muted"></div><div class="card"><h3>Last scan</h3><pre id="scanStatus" class="muted">—</pre></div></section>
-<section id="signals" class="page"><h2>Signal history</h2><div class="card table-wrap"><table><thead><tr><th>Symbol</th><th>Direction</th><th>Entry</th><th>SL</th><th>T1</th><th>Score</th><th>Status</th><th>Telegram</th><th>Time</th></tr></thead><tbody id="allSignals"></tbody></table></div></section>
-<section id="upstox" class="page"><h2>Connect Upstox</h2><p class="muted">Your access token is sent to this local server only. The complete token is never returned to the browser or logs.</p><div class="card form"><label>Upstox API access token</label><input id="upToken" type="password" autocomplete="off" placeholder="Paste access token"><div class="actions"><button class="primary" onclick="connectUpstox()">Connect</button><button onclick="disconnectUpstox()">Disconnect</button></div><div id="upStatus" class="muted">Checking connection…</div></div></section>
-<section id="telegram" class="page"><h2>Telegram alerts</h2><div class="card form"><label>Bot token</label><input id="tgToken" type="password" autocomplete="off"><label>Chat ID</label><input id="tgChat" autocomplete="off"><div class="actions"><button class="primary" onclick="saveTelegram()">Save settings</button><button onclick="testTelegram()">Send test alert</button></div><div id="tgStatus" class="muted"></div></div></section>
-<section id="settings" class="page"><h2>Settings</h2><div class="card form"><label>Scan interval (seconds)</label><input id="interval" type="number" min="2"><label>Minimum price</label><input id="minPrice" type="number" min="0"><label>Maximum price</label><input id="maxPrice" type="number" min="1"><div class="actions"><button class="primary" onclick="saveSettings()">Save settings</button></div><p class="muted">Confirmation filters are optional; PDH/PDL crossing is the base strategy.</p></div></section>
-<section id="journal" class="page"><h2>Trade journal</h2><p class="muted">Record manual trade decisions—this does not send orders.</p><div class="card form"><label>Symbol</label><input id="jSymbol"><label>Direction</label><select id="jDirection"><option>BUY</option><option>SELL</option></select><label>Entry</label><input id="jEntry" type="number"><label>Stop loss</label><input id="jSL" type="number"><label>Notes</label><input id="jNotes"><div class="actions"><button class="primary" onclick="saveJournal()">Add entry</button></div></div><div class="card table-wrap"><table><thead><tr><th>Date</th><th>Symbol</th><th>Direction</th><th>Entry</th><th>SL</th><th>Result</th><th>P&L</th><th>Notes</th></tr></thead><tbody id="journalRows"></tbody></table></div></section>
-</main><script>
-const $=id=>document.getElementById(id), fmt=x=>x==null?'—':typeof x==='number'?`₹${x.toFixed(2)}`:x;
-async function api(p,o={}){let r=await fetch('/api/'+p,{headers:{'Content-Type':'application/json'},...o});let d=await r.json().catch(()=>({detail:'Request failed'}));if(!r.ok)throw Error(d.detail||'Request failed');return d}
-function signalRows(items,compact=false){return items.length?items.map(s=>`<tr><td>${s.symbol}</td><td class="${s.direction}">${s.direction}</td><td>${fmt(s.breakout)}</td><td>${fmt(s.entry)}</td><td>${fmt(s.stop_loss)}</td><td>${fmt(s.t1)}</td>${compact?`<td>${fmt(s.t2)}</td><td>${s.score}</td><td>${s.signal_time}</td><td><span class="badge">${s.status}</span></td>`:`<td>${s.score}</td><td>${s.status}</td><td>${s.telegram_status}</td><td>${s.signal_time}</td>`}</tr>`).join(''):'<tr><td colspan="10" class="muted">No signals yet.</td></tr>'}
-async function load(){try{let[m,x,s]=await Promise.all([api('market/status'),api('scanner/status'),api('signals/active')]);$('market').textContent=`${m.status==='OPEN'?'● MARKET OPEN':'● MARKET '+m.status}`;$('market').className='status '+(m.status==='OPEN'?'open':'closed');$('market2').textContent=m.status;$('clock').textContent=new Date(m.timestamp).toLocaleString('en-IN',{timeZone:'Asia/Kolkata'});['loaded','scanned','buy','sell'].forEach(k=>$(k).textContent=x[k]??0);$('scanStatus').textContent=JSON.stringify(x,null,2);$('activeSignals').innerHTML=signalRows(s.signals,true);let all=await api('signals');$('allSignals').innerHTML=signalRows(all.signals)}catch(e){console.warn(e)}}
-async function refreshInstruments(){try{let x=await api('instruments/refresh',{method:'POST'});$('scanMessage').textContent=`Loaded ${x.loaded} NSE equities.`;load()}catch(e){$('scanMessage').textContent=e.message}}
-async function prepareLevels(){try{let x=await api('levels/prepare?limit=20',{method:'POST'});$('scanMessage').textContent=`Prepared ${x.prepared}/${x.requested} prior-session levels.`}catch(e){$('scanMessage').textContent=e.message}}
-async function startScan(){try{await api('scanner/start',{method:'POST'});load()}catch(e){$('scanMessage').textContent=e.message}}async function stopScan(){await api('scanner/stop',{method:'POST'});load()}
-async function upCheck(){let x=await api('upstox/status');$('upStatus').textContent=x.connected?`🟢 Connected (${x.token})`:'🔴 Not connected'}async function connectUpstox(){try{let x=await api('upstox/connect',{method:'POST',body:JSON.stringify({access_token:$('upToken').value})});$('upToken').value='';$('upStatus').textContent=`🟢 Connected: ${x.account}`}catch(e){$('upStatus').textContent='🔴 '+e.message}}async function disconnectUpstox(){await api('upstox/disconnect',{method:'POST'});upCheck()}
-async function tgCheck(){let x=await api('telegram/status');$('tgStatus').textContent=x.configured?'🟢 Telegram configured':'Telegram not configured'}async function saveTelegram(){try{await api('telegram/config',{method:'POST',body:JSON.stringify({bot_token:$('tgToken').value,chat_id:$('tgChat').value})});$('tgToken').value='';$('tgChat').value='';tgCheck()}catch(e){$('tgStatus').textContent=e.message}}async function testTelegram(){try{$('tgStatus').textContent='Test: '+(await api('telegram/test',{method:'POST'})).status}catch(e){$('tgStatus').textContent=e.message}}
-async function settingsLoad(){let x=await api('settings');$('interval').value=x.scan_interval;$('minPrice').value=x.min_price;$('maxPrice').value=x.max_price}async function saveSettings(){await api('settings',{method:'PUT',body:JSON.stringify({scan_interval:+$('interval').value,min_price:+$('minPrice').value,max_price:+$('maxPrice').value})})}
-async function journalLoad(){let x=await api('journal');$('journalRows').innerHTML=x.entries.map(j=>`<tr><td>${j.date}</td><td>${j.symbol}</td><td>${j.direction}</td><td>${fmt(j.entry)}</td><td>${fmt(j.stop_loss)}</td><td>${j.result||'—'}</td><td>${j.pnl||'—'}</td><td>${j.notes||''}</td></tr>`).join('')}async function saveJournal(){try{await api('journal',{method:'POST',body:JSON.stringify({date:new Date().toISOString().slice(0,10),symbol:$('jSymbol').value.toUpperCase(),direction:$('jDirection').value,entry:+$('jEntry').value,stop_loss:+$('jSL').value,notes:$('jNotes').value})});journalLoad()}catch(e){alert(e.message)}}
-document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>{document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$(b.dataset.page).classList.add('active')});load();upCheck();tgCheck();settingsLoad();journalLoad();setInterval(load,5000);
-</script></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NSE Semi-Algo Scanner | EMA 6/30 Crossover</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body class="theme-dark">
+  <!-- Top Navigation / Header -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="logo-group">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline>
+            <polyline points="16 7 22 7 22 13"></polyline>
+          </svg>
+        </div>
+        <div class="logo-text">
+          <h1>NSE SEMI-ALGO</h1>
+          <span class="subtext">EMA 6 / EMA 30 Cross Scanner</span>
+        </div>
+      </div>
+
+      <!-- Market Status Badge -->
+      <div class="badge-pill market-pill" id="marketBadge">
+        <span class="pulse-dot"></span>
+        <span class="pill-label" id="marketStatusText">CHECKING...</span>
+      </div>
+
+      <!-- Timeframe Switcher -->
+      <div class="timeframe-selector">
+        <span class="selector-label">TIMEFRAME</span>
+        <div class="segmented-control">
+          <button class="seg-btn active" id="tf5mBtn" onclick="setTimeframe('5M')">5M</button>
+          <button class="seg-btn" id="tf10mBtn" onclick="setTimeframe('10M')">10M</button>
+        </div>
+      </div>
+
+      <!-- Universe Selector -->
+      <div class="universe-selector">
+        <span class="selector-label">UNIVERSE</span>
+        <select id="universeSelect" onchange="setUniverse(this.value)">
+          <option value="ALL_NSE">All NSE Equities (~2,600)</option>
+          <option value="NIFTY500">NIFTY 500</option>
+          <option value="NIFTY100">NIFTY 100</option>
+          <option value="NIFTY50">NIFTY 50</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <!-- Upstox Connection Pill -->
+      <div class="badge-pill upstox-pill" id="upstoxBadge" onclick="openUpstoxModal()">
+        <svg class="key-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+        </svg>
+        <span id="upstoxStatusText">Upstox: Disconnected</span>
+      </div>
+
+      <!-- Scanner Controls -->
+      <div class="control-actions">
+        <button class="btn btn-secondary btn-icon" id="scanNowBtn" onclick="triggerScanNow()" title="Run immediate scan">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+          </svg>
+          Scan Now
+        </button>
+        <button class="btn btn-primary" id="toggleScannerBtn" onclick="toggleScanner()">
+          Pause
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Metrics & Stats Strip -->
+  <section class="stats-strip">
+    <div class="stat-card">
+      <div class="stat-title">LAST SCAN TIME</div>
+      <div class="stat-value" id="statLastScan">--:--:--</div>
+      <div class="stat-meta" id="statDuration">Cycle: 0.0s</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-title">STOCKS SCANNED</div>
+      <div class="stat-value" id="statScanned">0 / 0</div>
+      <div class="stat-meta"><span id="statProgressPct">0%</span> of active universe</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-title">SUCCESS / FAILED</div>
+      <div class="stat-value">
+        <span class="text-success" id="statSuccess">0</span> / <span class="text-danger" id="statFailed">0</span>
+      </div>
+      <div class="stat-meta">Per-stock error isolated</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-title">SIGNALS TODAY</div>
+      <div class="stat-value text-accent" id="statSignalsToday">0</div>
+      <div class="stat-meta">Ranked newest first</div>
+    </div>
+    <div class="stat-card engine-status-card">
+      <div class="stat-title">ENGINE STATUS</div>
+      <div class="stat-value status-text" id="statEngineStatus">Ready</div>
+      <div class="stat-meta" id="statMessage">Awaiting next completed candle...</div>
+    </div>
+  </section>
+
+  <!-- Navigation Tabs -->
+  <nav class="view-tabs">
+    <button class="tab-link active" onclick="switchView('signals')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+      Live Crossover Signals
+    </button>
+    <button class="tab-link" onclick="switchView('orders')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+      Order Execution Audit Log
+    </button>
+  </nav>
+
+  <!-- Main View 1: Live Signals Dual Board -->
+  <main class="main-content" id="signalsView">
+    <div class="boards-grid">
+      <!-- BUY SIGNALS BOARD -->
+      <section class="board-column buy-board">
+        <div class="board-header">
+          <div class="board-title-group">
+            <span class="board-indicator bg-buy"></span>
+            <h2>BUY SIGNALS</h2>
+            <span class="count-badge count-buy" id="buyCount">0</span>
+          </div>
+          <span class="board-caption">EMA 6 crossed ABOVE EMA 30 (Completed candle)</span>
+        </div>
+
+        <div class="table-container">
+          <table class="signals-table">
+            <thead>
+              <tr>
+                <th style="width: 55px;">Rank</th>
+                <th>Stock</th>
+                <th>Price</th>
+                <th>EMA 6</th>
+                <th>EMA 30</th>
+                <th>Candle Closed</th>
+                <th>TF</th>
+                <th style="text-align: right;">Manual Action</th>
+              </tr>
+            </thead>
+            <tbody id="buySignalsBody">
+              <tr class="empty-row">
+                <td colspan="8">No BUY crossover signals detected yet for this timeframe.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- SELL SIGNALS BOARD -->
+      <section class="board-column sell-board">
+        <div class="board-header">
+          <div class="board-title-group">
+            <span class="board-indicator bg-sell"></span>
+            <h2>SELL SIGNALS</h2>
+            <span class="count-badge count-sell" id="sellCount">0</span>
+          </div>
+          <span class="board-caption">EMA 6 crossed BELOW EMA 30 (Completed candle)</span>
+        </div>
+
+        <div class="table-container">
+          <table class="signals-table">
+            <thead>
+              <tr>
+                <th style="width: 55px;">Rank</th>
+                <th>Stock</th>
+                <th>Price</th>
+                <th>EMA 6</th>
+                <th>EMA 30</th>
+                <th>Candle Closed</th>
+                <th>TF</th>
+                <th style="text-align: right;">Manual Action</th>
+              </tr>
+            </thead>
+            <tbody id="sellSignalsBody">
+              <tr class="empty-row">
+                <td colspan="8">No SELL crossover signals detected yet for this timeframe.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- Main View 2: Executed Orders Audit Log -->
+  <main class="main-content hidden" id="ordersView">
+    <div class="card orders-card">
+      <div class="card-header">
+        <h2>Manual Order Approval History</h2>
+        <button class="btn btn-secondary btn-sm" onclick="loadOrderHistory()">Refresh</button>
+      </div>
+      <div class="table-container">
+        <table class="signals-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Time</th>
+              <th>Symbol</th>
+              <th>Side</th>
+              <th>Qty</th>
+              <th>Type</th>
+              <th>Product</th>
+              <th>Price</th>
+              <th>Upstox Order ID</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="ordersHistoryBody">
+            <tr class="empty-row">
+              <td colspan="10">No orders placed through semi-algo manual approval yet.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- Modal: Upstox Access Token Settings -->
+  <div class="modal-overlay hidden" id="upstoxModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Connect Upstox API</h3>
+        <button class="modal-close" onclick="closeUpstoxModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">
+          Paste your Upstox API v2/v3 Access Token below to enable live scanning and manual order execution.
+        </p>
+        <div class="form-group">
+          <label for="upstoxTokenInput">Upstox Access Token</label>
+          <textarea id="upstoxTokenInput" rows="3" placeholder="eyAiYWxnIjoiSFMyNTYi..."></textarea>
+        </div>
+        <div class="token-status-info" id="tokenStatusInfo"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeUpstoxModal()">Cancel</button>
+        <button class="btn btn-danger" onclick="disconnectUpstox()">Disconnect</button>
+        <button class="btn btn-primary" onclick="saveUpstoxToken()">Save & Connect</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Manual Order Approval (Semi-Algo Requirement) -->
+  <div class="modal-overlay hidden" id="orderModal">
+    <div class="modal-box order-modal-box">
+      <div class="modal-header">
+        <h3 id="orderModalTitle">Manual Order Approval</h3>
+        <button class="modal-close" onclick="closeOrderModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="order-alert-banner">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+            <line x1="12" y1="9" x2="12" y2="13"></line>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+          <div>
+            <strong>SEMI-ALGO CONFIRMATION</strong>
+            <p>Orders are NEVER placed automatically. You are approving a live order execution through Upstox.</p>
+          </div>
+        </div>
+
+        <div class="order-summary-grid">
+          <div class="summary-item">
+            <span class="label">STOCK</span>
+            <span class="value symbol-highlight" id="modalStock">--</span>
+          </div>
+          <div class="summary-item">
+            <span class="label">SIGNAL</span>
+            <span class="value" id="modalSide">--</span>
+          </div>
+          <div class="summary-item">
+            <span class="label">SIGNAL PRICE</span>
+            <span class="value" id="modalSignalPrice">₹0.00</span>
+          </div>
+          <div class="summary-item">
+            <span class="label">TIMEFRAME</span>
+            <span class="value" id="modalTimeframe">--</span>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group flex-1">
+            <label for="orderQty">Quantity (Shares)</label>
+            <input type="number" id="orderQty" value="1" min="1" step="1" oninput="recalcOrderTotal()" />
+          </div>
+          <div class="form-group flex-1">
+            <label for="orderType">Order Type</label>
+            <select id="orderType" onchange="toggleLimitPriceField(this.value)">
+              <option value="MARKET">MARKET</option>
+              <option value="LIMIT">LIMIT</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group flex-1" id="limitPriceGroup" style="display: none;">
+            <label for="orderLimitPrice">Limit Price (₹)</label>
+            <input type="number" id="orderLimitPrice" step="0.05" oninput="recalcOrderTotal()" />
+          </div>
+          <div class="form-group flex-1">
+            <label for="orderProduct">Product</label>
+            <select id="orderProduct">
+              <option value="I">INTRADAY (MIS)</option>
+              <option value="D">DELIVERY (CNC)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="order-total-preview">
+          <span>Est. Value: <strong id="orderEstValue">₹0.00</strong></span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeOrderModal()">Cancel</button>
+        <button class="btn btn-primary" id="confirmOrderBtn" onclick="submitManualOrder()">
+          Confirm & Execute via Upstox
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
