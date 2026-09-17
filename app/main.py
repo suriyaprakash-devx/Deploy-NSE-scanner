@@ -139,6 +139,16 @@ async def serve_dashboard():
 
 # ----------------- Market & Scanner Endpoints -----------------
 
+@app.get("/api/health")
+async def health_check():
+    return {
+        "status": "healthy",
+        "version": "2.0.0-ema-crossover",
+        "market": get_market_status(),
+        "scanner_running": scanner.is_running,
+        "upstox_connected": upstox.is_configured()
+    }
+
 @app.get("/api/market/status")
 async def market_status():
     st = get_market_status()
