@@ -1,4 +1,5 @@
 import os
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from sqlalchemy import (
@@ -17,6 +18,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from app.config import settings
 
+logger = logging.getLogger("scanner.database")
 Base = declarative_base()
 
 class Instrument(Base):
@@ -79,31 +81,52 @@ class SystemSetting(Base):
     value = Column(Text, nullable=False)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
-# Create Engine & Session Factory
-db_url = settings.normalized_database_url
-if db_url.startswith("sqlite"):
-    # Ensure directory exists for sqlite
+def _get_sqlite_engine():
     data_dir = Path(__file__).resolve().parent.parent / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
-    engine = create_engine(
-        db_url,
+    sqlite_path = data_dir / "nse_scanner.db"
+    return create_engine(
+        f"sqlite:///{sqlite_path}",
         connect_args={"check_same_thread": False},
         echo=False
     )
-else:
-    engine = create_engine(
-        db_url,
-        pool_pre_ping=True,
-        pool_size=10,
-        max_overflow=20,
-        echo=False
-    )
 
+def _build_engine():
+    db_url = settings.normalized_database_url
+    if db_url.startswith("sqlite"):
+        return _get_sqlite_engine()
+
+    try:
+        pg_engine = create_engine(
+            db_url,
+            pool_pre_ping=True,
+            pool_size=10,
+            max_overflow=20,
+            connect_args={"connect_timeout": 3},
+            echo=False
+        )
+        with pg_engine.connect() as conn:
+            pass
+        logger.info("Connected successfully to PostgreSQL database.")
+        return pg_engine
+    except Exception as e:
+        logger.warning("Could not connect to PostgreSQL (%s). Falling back to local SQLite database.", e)
+        return _get_sqlite_engine()
+
+engine = _build_engine()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def init_db():
     """Create tables if they do not exist and seed default settings."""
-    Base.metadata.create_all(bind=engine)
+    global engine, SessionLocal
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        logger.warning("Database init error with primary engine (%s). Falling back to SQLite.", e)
+        engine = _get_sqlite_engine()
+        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+        Base.metadata.create_all(bind=engine)
+
     with SessionLocal() as db:
         # Seed default timeframe if not present
         if not db.query(SystemSetting).filter_by(key="timeframe").first():
