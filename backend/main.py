@@ -252,3 +252,24 @@ def get_scanner_results(db: Session = Depends(get_db)):
         "count": len(formatted),
         "completed_at": latest_run.completed_at.isoformat() if latest_run.completed_at else None
     }
+
+# ----------------- Serve Frontend Static Build (Docker & Production) -----------------
+from pathlib import Path
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
+frontend_dist = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+if frontend_dist.exists():
+    assets_dir = frontend_dist / "assets"
+    if assets_dir.exists():
+        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        # Don't intercept API routes
+        if full_path.startswith("api"):
+            raise HTTPException(status_code=404, detail="API route not found")
+        file_path = frontend_dist / full_path
+        if file_path.exists() and file_path.is_file():
+            return FileResponse(file_path)
+        return FileResponse(frontend_dist / "index.html")

@@ -1,0 +1,26 @@
+# Version control
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+*.egg-info
+venv
+.env
+
+# Local data & caches
+data/*.db
+data/upstox_nse_instruments.json
+
+# Node & Frontend
+frontend/node_modules
+frontend/dist
+.vite
+
+# OS artifacts
+.DS_Store
+Thumbs.db

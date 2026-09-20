@@ -143,3 +143,25 @@ This project includes a ready-to-deploy [`render.yaml`](file:///render.yaml) Blu
    - **`nse-scanner-frontend`**: React + Vite Static Site.
    - **`nse-scanner-postgres`**: Managed PostgreSQL Database.
 5. In the backend service environment variables, set `UPSTOX_ACCESS_TOKEN` (or provide it directly from the deployed dashboard).
+
+---
+
+## Docker Deployment
+
+You can build and run the entire application (FastAPI backend + React frontend) in a single optimized container using the provided multi-stage `Dockerfile`:
+
+### 1. Build the Docker Image
+```bash
+docker build -t upstox-nse-scanner .
+```
+
+### 2. Run the Container
+```bash
+docker run -p 8000:8000 \
+  -e UPSTOX_ACCESS_TOKEN="your_daily_token_here" \
+  -e ENVIRONMENT="production" \
+  upstox-nse-scanner
+```
+
+Once running, access the dashboard at: `http://localhost:8000`
+
