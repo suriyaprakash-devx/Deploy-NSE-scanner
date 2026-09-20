@@ -1,0 +1,50 @@
+services:
+  # 1. FastAPI Backend Web Service
+  - type: web
+    name: nse-scanner-backend
+    env: python
+    region: oregon
+    plan: standard
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: nse-scanner-postgres
+          property: connectionString
+      - key: UPSTOX_ACCESS_TOKEN
+        sync: false
+      - key: UPSTOX_CLIENT_ID
+        sync: false
+      - key: UPSTOX_CLIENT_SECRET
+        sync: false
+      - key: UPSTOX_REDIRECT_URI
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ENVIRONMENT
+        value: production
+      - key: DELETE_RESULTS_AFTER_SCAN
+        value: "false"
+
+  # 2. React + Vite Frontend Static Site
+  - type: static
+    name: nse-scanner-frontend
+    region: oregon
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    publishDir: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+databases:
+  # 3. PostgreSQL Managed Database
+  - name: nse-scanner-postgres
+    region: oregon
+    plan: standard
+    databaseName: nse_scanner
+    user: scanner_user
