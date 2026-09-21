@@ -74,13 +74,8 @@ def detect_crossover(candles: List[Dict[str, Any]], symbol: str, company: str) -
     df["dt"] = pd.to_datetime(df["timestamp"])
     df = df.sort_values(by="dt", ascending=True).reset_index(drop=True)
 
-    # Filter out current day incomplete candle if still within market hours or incomplete
-    now = datetime.now()
-    if not df.empty:
-        last_dt = df["dt"].iloc[-1]
-        if last_dt.date() == now.date() and (now.hour < 15 or (now.hour == 15 and now.minute < 35)):
-            df = df.iloc[:-1].reset_index(drop=True)
-
+    # Note: Currently forming incomplete candles are already excluded at the data client level (upstox_client.py).
+    # The last candle in df is the exact most recently closed completed candle.
     if len(df) < 31:
         return None
 

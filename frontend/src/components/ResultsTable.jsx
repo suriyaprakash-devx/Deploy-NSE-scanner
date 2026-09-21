@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowUpRight, ArrowDownRight, ArrowUpDown, Inbox } from 'lucide-react';
 
-export default function ResultsTable({ results, isLoading }) {
+export default function ResultsTable({ results, isLoading, todayStr }) {
   const [sortField, setSortField] = useState('Rank');
   const [sortDirection, setSortDirection] = useState('asc'); // 'asc' or 'desc'
 
@@ -102,8 +102,11 @@ export default function ResultsTable({ results, isLoading }) {
                         <span>{item['Signal Type']}</span>
                       </span>
                     </td>
-                    <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}>
-                      {item['Crossover Date']}
+                    <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
+                      {todayStr && item['Crossover Date']?.startsWith(todayStr) && (
+                        <span className="today-badge">TODAY</span>
+                      )}
+                      <span>{item['Crossover Date']}</span>
                     </td>
                     <td>
                       <span className="price-num">₹{item.Close}</span>

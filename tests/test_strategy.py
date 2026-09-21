@@ -166,3 +166,26 @@ def test_crossover_10min_timestamps():
     # Verify timestamp includes hour and minute
     assert ":" in signal["crossover_date"]
 
+def test_crossover_retains_latest_today_candle():
+    """Verify that a completed candle with today's date is evaluated and not dropped."""
+    now = datetime.now()
+    candles = []
+    # 35 10-minute candles ending at current time
+    for i in range(35):
+        dt = (now - timedelta(minutes=10 * (34 - i))).strftime("%Y-%m-%d %H:%M")
+        price = 100.0 + (i * 2.0 if i >= 30 else -i * 0.1)
+        candles.append({
+            "timestamp": dt,
+            "open": price,
+            "high": price + 1,
+            "low": price - 1,
+            "close": price,
+            "volume": 5000
+        })
+
+    signal = detect_crossover(candles, "TODAY", "Today Stock Ltd")
+    assert signal is not None
+    assert signal["signal_type"] == "BULLISH"
+    # Ensure the crossover date corresponds to today's date
+    assert now.strftime("%Y-%m-%d") in signal["crossover_date"]
+

@@ -1,9 +1,12 @@
 import React from 'react';
-import { Search, Download, Filter } from 'lucide-react';
+import { Search, Download, Zap } from 'lucide-react';
 
 export default function FilterBar({
   searchQuery,
   onSearchChange,
+  dateFilter,
+  onDateFilterChange,
+  todayCount,
   signalFilter,
   onSignalFilterChange,
   totalCount,
@@ -24,13 +27,33 @@ export default function FilterBar({
         />
       </div>
 
+      {/* Date Filter: Today vs All */}
+      <div className="filter-pills">
+        <button
+          className={`filter-chip ${dateFilter === 'ALL' ? 'active' : ''}`}
+          onClick={() => onDateFilterChange('ALL')}
+        >
+          All Signals ({totalCount})
+        </button>
+        <button
+          className={`filter-chip today ${dateFilter === 'TODAY' ? 'active today' : ''}`}
+          onClick={() => onDateFilterChange('TODAY')}
+          title="Filter stocks with crossovers that happened today"
+        >
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+            <Zap size={13} fill={dateFilter === 'TODAY' ? 'currentColor' : 'none'} />
+            Today's Signals ({todayCount})
+          </span>
+        </button>
+      </div>
+
       {/* Signal Type Filter Chips */}
       <div className="filter-pills">
         <button
           className={`filter-chip ${signalFilter === 'ALL' ? 'active' : ''}`}
           onClick={() => onSignalFilterChange('ALL')}
         >
-          All ({totalCount})
+          All Types
         </button>
         <button
           className={`filter-chip bullish ${signalFilter === 'BULLISH' ? 'active bullish' : ''}`}

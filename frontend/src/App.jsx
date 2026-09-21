@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Header from './components/Header';
 import MetricsCards from './components/MetricsCards';
 import ScannerControls from './components/ScannerControls';
@@ -23,6 +23,7 @@ export default function App() {
 
   // Filters & Search
   const [searchQuery, setSearchQuery] = useState('');
+  const [dateFilter, setDateFilter] = useState('ALL'); // 'ALL' | 'TODAY'
   const [signalFilter, setSignalFilter] = useState('ALL'); // 'ALL' | 'BULLISH' | 'BEARISH'
 
   // Modals & UI
@@ -125,21 +126,46 @@ export default function App() {
     }
   };
 
+  // Today's date string in IST (YYYY-MM-DD)
+  const todayStr = useMemo(() => {
+    try {
+      return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+    } catch {
+      return new Date().toISOString().slice(0, 10);
+    }
+  }, []);
+
   // 4. Filtering & Searching
-  const filteredResults = rawResults.filter((row) => {
-    const matchesSearch =
-      searchQuery === '' ||
-      row.Symbol?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      row.Company?.toLowerCase().includes(searchQuery.toLowerCase());
+  const todayCount = useMemo(() => {
+    return rawResults.filter((r) => r['Crossover Date']?.startsWith(todayStr)).length;
+  }, [rawResults, todayStr]);
 
-    const matchesSignal =
-      signalFilter === 'ALL' || row['Signal Type'] === signalFilter;
+  const filteredResults = useMemo(() => {
+    return rawResults.filter((row) => {
+      const matchesSearch =
+        searchQuery === '' ||
+        row.Symbol?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        row.Company?.toLowerCase().includes(searchQuery.toLowerCase());
 
-    return matchesSearch && matchesSignal;
-  });
+      const matchesDate =
+        dateFilter === 'ALL' || row['Crossover Date']?.startsWith(todayStr);
 
-  const bullishCount = rawResults.filter((r) => r['Signal Type'] === 'BULLISH').length;
-  const bearishCount = rawResults.filter((r) => r['Signal Type'] === 'BEARISH').length;
+      const matchesSignal =
+        signalFilter === 'ALL' || row['Signal Type'] === signalFilter;
+
+      return matchesSearch && matchesDate && matchesSignal;
+    });
+  }, [rawResults, searchQuery, dateFilter, signalFilter, todayStr]);
+
+  // Bullish / Bearish counts based on active date filter
+  const dateScopedResults = useMemo(() => {
+    return dateFilter === 'ALL'
+      ? rawResults
+      : rawResults.filter((r) => r['Crossover Date']?.startsWith(todayStr));
+  }, [rawResults, dateFilter, todayStr]);
+
+  const bullishCount = dateScopedResults.filter((r) => r['Signal Type'] === 'BULLISH').length;
+  const bearishCount = dateScopedResults.filter((r) => r['Signal Type'] === 'BEARISH').length;
 
   // 5. CSV Export
   const handleExportCsv = () => {
@@ -166,7 +192,7 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `Upstox_Crossover_Scan_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `Upstox_Crossover_Scan_${todayStr}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -212,6 +238,9 @@ export default function App() {
       <FilterBar
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        dateFilter={dateFilter}
+        onDateFilterChange={setDateFilter}
+        todayCount={todayCount}
         signalFilter={signalFilter}
         onSignalFilterChange={setSignalFilter}
         totalCount={rawResults.length}
@@ -224,6 +253,7 @@ export default function App() {
       <ResultsTable
         results={filteredResults}
         isLoading={scanStatus?.is_running}
+        todayStr={todayStr}
       />
 
       {/* Token Modal */}
